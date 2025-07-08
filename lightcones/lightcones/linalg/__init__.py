@@ -41,7 +41,7 @@ def lancz(w, J, n = None):
         raise RuntimeError("dlancz ierr not zero: " + str(ierr))   
     return a, b
 
-# make tridiagonal matrix 
+# make sparse tridiagonal matrix 
 # e: diagonal
 # h: upper and lower diagonal
 def tridiag(e, h):
