@@ -7,9 +7,8 @@ import numpy as np
 import tools
 from tools import mv
 import time
-from evolution_chained2_kicked import evolution_chained2_kicked
-from evolution import evolution
-from evolution2 import evolution2
+from evolution_for_impurity import evolution_for_impurity
+
 
 import math
 import random
@@ -39,12 +38,7 @@ parser.add_argument('--tmax', type=float, default = 100)
 parser.add_argument('--nspins', type=float, default = 10)
 parser.add_argument('--lambd', type=float, default = 0)
 parser.add_argument('--beta', type=str, default = "inf")
-# parser.add_argument('--psi_file', type=str, default="psi_file.txt", help='Path to initial psi file')
-parser.add_argument('--intervals', type=str, default="intervals.txt", help='Path to intervals')
-parser.add_argument('--couplings', type=str, default="couplings.txt", help='Path to couplings')
-parser.add_argument('--rotations', type=str, default="rotations.txt", help='Path to rotations')
-parser.add_argument('--times', type=str, default="times.txt", help='Path to times')
-parser.add_argument('--star_out', type=str, default="star_out.txt", help='Path to star_out')
+parser.add_argument('--lightcones', type=str, required=True, help='Folder with lightcone_constructor data')
 
 args = parser.parse_args()
 
@@ -59,13 +53,11 @@ print("on max ", max_cores_used, " CPU cores")
 #### where to save the results
 
 folder = args.fout
-
 print("Will save results into ", folder)
 
 #### Max simulation time and time step
 
 tmax = args.tmax
-
 print("Will simulate up to time", tmax)
 
 ####
@@ -78,80 +70,76 @@ else:
     print("Environment beta = ", beta)
 
 lambda_ = args.lambd
-
 print("Parameter: ", lambda_)
 
 n_max = args.nquanta
-
 print("Max number of coupled quanta: ", n_max)
 
 n_spin = int(args.nspins)
-
 print("n spins: ", n_spin)
 
-#----------------------------------------------------
 
+data_dir = pathlib.Path(args.lightcones)
+
+#----------------------------------------------------
 intervals = []
-
+intervals_path = data_dir / "intervals.txt"
 try:
-    with pathlib.Path(args.intervals).open() as f:
-        while True:
-            l = [int(e) for e in next(f).split()] 
+    with intervals_path.open() as f:
+        for line in f:
+            l = [int(e) for e in line.split()]
             intervals.append(l)
-except StopIteration as e:
-    pass
-
+except Exception as e:
+    print(f"Error reading intervals: {e}")
 #----------------------------------------------------
-
 couplings = []
-
+couplings_path = data_dir / "couplings.txt"
 try:
-    with pathlib.Path(args.couplings).open() as f:
-        while True:
-            re = np.asarray([float(e) for e in next(f).split()])
-            im = np.asarray([float(e) for e in next(f).split()])
+    with couplings_path.open() as f:
+        lines = f.readlines()
+        for i in range(0, len(lines), 2):
+            re = np.array([float(e) for e in lines[i].split()])
+            im = np.array([float(e) for e in lines[i + 1].split()])
             couplings.append(re + 1j * im)
-except StopIteration as e:
-    pass
-
+except Exception as e:
+    print(f"Error reading couplings: {e}")
 #----------------------------------------------------
-
 rotations = []
+rotations_path = data_dir / "rotations.txt"
 
 m_max = 0
 n_rel = 0
 
-with pathlib.Path(args.rotations).open() as f:
-    
-    for i in intervals:
+try:
+    with rotations_path.open() as f:
+        for i in intervals:
+            a, b = i[2], i[3]
 
-        a = i[2]
-        b = i[3]
+            n_rel = max(n_rel, b)
+            m_max = max(m_max, b - a)
 
-        n_rel = max(n_rel, b)
-        m_max = max(m_max, b - a)
+            re = np.zeros((b - a, b - a), dtype=np.complex128)
+            for p in range(b - a):
+                re[p, :] = np.array([float(e) for e in next(f).split()])
 
-        re = np.zeros((b - a, b - a), dtype = np.cdouble)
-        for p in range(b - a):
-            re[p, :] = np.asarray([float(e) for e in next(f).split()])
+            im = np.zeros((b - a, b - a), dtype=np.complex128)
+            for p in range(b - a):
+                im[p, :] = np.array([float(e) for e in next(f).split()])
 
-        im = np.zeros((b - a, b - a), dtype = np.cdouble)
-        for p in range(b - a):
-            im[p, :] = np.asarray([float(e) for e in next(f).split()])
-
-        w = re + 1j * im
-
-        rotations.append(w)
+            w = re + 1j * im
+            rotations.append(w)
+except Exception as e:
+    print(f"Error reading rotations: {e}")
 
 print("Max number of coupled modes: ", m_max)
-
 #----------------------------------------------------
+time_path = data_dir / "time.txt"
 
-with pathlib.Path(args.times).open() as f:
+with time_path.open() as f:
     tg = np.loadtxt(f)
+
 ntg = tg.size
 dt = tg[1] - tg[0]
-
 #-----------------------------------------------------
 
 t = tg
@@ -159,6 +147,35 @@ nt = ntg
 nt_ = np.where(t <= tmax)[0][-1]
 t_ = t[0 : nt_]
 
+#-----------------------------------------------------
+
+c_th = None
+n_th = None
+w_th = None
+fe = None
+
+star_out_path = data_dir / "star_out.txt"
+
+if (beta > 0):
+    with star_out_path.open() as f:
+        star_th_ = np.loadtxt(f)
+        
+    n_th = star_th_.shape[0]
+    
+    print("Dimension of thermal noise: ", n_th)
+
+    star_th = np.zeros((n_th, 2), dtype = complex)
+    star_th[:, 0] = star_th_[:, 0]
+    star_th[:, 1] = star_th_[:, 1] + 1j*star_th_[:, 2]
+    
+    w_th = star_th[:, 0]
+    c_th = star_th[:, 1] / np.sqrt(np.exp(w_th * beta) - 1)
+    
+    fe = np.zeros((n_th, nt_), dtype = complex)
+    
+    for i in range(n_th):
+        fe[i, :] = np.exp(1j * w_th[i] * (t_ + dt/2)) 
+    
 #-----------------------------------------------------
 
 p = os.path.join(sys.path[0], folder, "time.txt")
@@ -182,13 +199,9 @@ m_spin = tools.spin_chain(n_spin)
 print('...done', flush = True)
 
 ### Initial condition one spin up and vacuum
-
-# psi_ini = np.zeros(m.dimension, dtype = complex)
-# psi_ini[0] = 1
-
 to_ring = [ _ % m_max for _ in range(0, n_rel)]
 
-n_spin_ = n_spin - 1
+# n_spin_ = n_spin - 1
 J = 1
 r = 0.5
 h = J/lambda_
@@ -220,20 +233,14 @@ eigenvalues, eigenvectors = eigh(H_spi)
 psi_boson_vac = np.zeros(m.fs_chain.dimension)
 psi_boson_vac[0] = 1.0  # vacuum bosons
 
-psi_ini = np.kron(eigenvectors[:,0], psi_boson_vac)
 
-# psi_spin = np.zeros(m.space.dimension) 
-# psi_spin[3] = 1.0
-# psi_ini = np.kron(psi_spin, psi_boson_vac)
+psi_ini = np.kron(eigenvectors[:,0], psi_boson_vac)
 
 dim_A = m.space.dimension
 dim_B = m.fs_chain.dimension
 
 def H_spin(ti):
     return H_spin_
-
-# def H_spin(ti):
-#     return np.kron(H_spi, np.eye(252))
 
 
 la = lo.a()
@@ -311,11 +318,11 @@ def job(image):
                 a_ = i_[2]
                 for q in range(a_, a):
                     
-                    measured_mode = to_ring[q] #+ 1
+                    measured_mode = to_ring[q]
+                    # measured_mode = to_ring[q] + n_spin
 
                     psi_begin, j_prob, j_psi, j_ind, _  = lo.quantum_jumpEx(psi_begin, measured_mode)
                     
-                    # psi_begin_ = psi_begin.reshape((dim_A, dim_B))
                     rho_full = np.outer(psi_begin, np.conj(psi_begin))
                     rho_full = rho_full.reshape((dim_A, dim_B, dim_A, dim_B))
                     rho_sys = np.einsum('iaja->ij', rho_full)
@@ -357,13 +364,13 @@ def job(image):
 
             def Vint(ti):
                 
-                V = 0*sum(couplings[ti] * a_ring) @ sum(m.sx[i] for i in range(n_spin))/n_spin
+                V = sum(couplings[ti] * a_ring) @ sum(m.sx[i] for i in range(n_spin))/n_spin
                     
                 V = V + V.conj().transpose()
                 return(V)
             
             def Ht(ti):
-                return H_spin(ti)  #+ Hw #Vint(ti) + Hw
+                return H_spin(ti) + Hw + Vint(ti)
 
 
             eval.Ht_ = None
@@ -375,13 +382,13 @@ def job(image):
             def apply_H(ti, psi_in, psi_out):
                 mv(eval.Ht_, psi_in, psi_out)
 
-            evolution_chained2_kicked(i[0], i1, dt, begin_step, apply_H, eval_o, psi_begin, psi, psi_mid, psi_mid_next, first_in_chain)
+            evolution_for_impurity(i[0], i1, dt, begin_step, apply_H, eval_o, psi_begin, psi, psi_mid, psi_mid_next, first_in_chain)
             first_in_chain = 0
             
             psi_begin = np.copy(psi)
 
-
             ni = ni + 1
+            
 # store results 
     
     for i in range(trajectories_per_chunk):
@@ -415,12 +422,12 @@ def job(image):
         for i in range(nt_):
             print(str(nqz[i].real) + " " + str(nqz[i].imag), file = f)
     
-    path = os.path.join(sys.path[0], folder, "E_" + str(image) + ".txt")
+    # path = os.path.join(sys.path[0], folder, "E_" + str(image) + ".txt")
     
-    with open(path, "w") as f:
-        print(str(trajectories_per_chunk) + " " + str(0), file = f)
-        for i in range(nt_):
-            print(str(nqE[i].real) + " " + str(nqE[i].imag), file = f)
+    # with open(path, "w") as f:
+    #     print(str(trajectories_per_chunk) + " " + str(0), file = f)
+    #     for i in range(nt_):
+    #         print(str(nqE[i].real) + " " + str(nqE[i].imag), file = f)
     
     path = os.path.join(sys.path[0], folder, "probs_" + str(image) + ".txt")
     

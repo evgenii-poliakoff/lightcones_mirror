@@ -3,7 +3,7 @@ start_time = time.time()
 
 #---------------------------------------------------------------------
 
-import tools_changed_by_me 
+import tools 
 import numpy as np
 
 #---------------------------------------------------------------------
@@ -29,9 +29,6 @@ data = np.loadtxt(str(args.chain))
 es = data[:, 0]
 hs = data[:, 1]
 
-#with args.chain.open() as f:
-#    es = [float(e) for e in next(f).split()] # read on-site energies
-#    hs = [float(h) for h in next(f).split()] # read hoppings
     
 if not es.size == hs.size:
     raise Exception("One should have nh = ne, where nh = number of hoppings, ne = number of on-site energies")
@@ -71,49 +68,37 @@ chain_stem = args.chain.stem  # Например, "chain_time=1000_h=0.1_c=0.025
 if chain_stem.startswith("chain_"):
     chain_stem = chain_stem[len("chain_"):]  # Удаляем префикс "chain_"
 
+def get_output_path(name):
+    output_dir = pathlib.Path(f"lightcone_{chain_stem}")
+    output_dir.mkdir(exist_ok=True)
+    return output_dir / name
+
 # Формирование имени файла
-time_filename = f"time_{chain_stem}.txt"
-time_filepath = os.path.join(sys.path[0], time_filename)
 
-star_out_filename = f"star_out_{chain_stem}.txt"  
-star_out_filepath = os.path.join(sys.path[0], star_out_filename)
-
-intervals_filename = f"intervals_{chain_stem}.txt" 
-intervals_filepath = os.path.join(sys.path[0], intervals_filename)
-
-
-rotations_filename = f"rotations_{chain_stem}.txt"
-rotations_filepath = os.path.join(sys.path[0], rotations_filename)
-
-couplings_filename = f"couplings_{chain_stem}.txt"
-couplings_filepath = os.path.join(sys.path[0], couplings_filename)
+time_filename = f"time.txt"
+star_out_filename = f"star_out.txt"  
+intervals_filename = f"intervals.txt" 
+rotations_filename = f"rotations.txt"
+couplings_filename = f"couplings.txt"
 
 
 # Запись в файл
-with open(time_filepath, "w") as f:
+with open(get_output_path(time_filename), "w") as f:
     for i in range(ntg):
         print(str(tg[i]), file=f)
-
-# print(f"Данные сохранены в файл: {time_filepath}")
-
-
-# with open(os.path.join(sys.path[0], "time.txt"), "w") as f:
-#     for i in range(ntg):
-#         print(str(tg[i]), file = f)
 
 #-------------------------------------------------------------------------------------------------
 
 scoupling = hs[0]
 print('Coupling to impurity: ', scoupling)
-H = tools_changed_by_me.tridiag(es, hs[1:])
+H = tools.tridiag(es, hs[1:])
 
 #--------------------------------------------------------------------------------------------------
 
 H_dense = H.todense()
-w, modes = tools_changed_by_me.find_eigs_ascending(H_dense)
+w, modes = tools.find_eigs_ascending(H_dense)
 
-
-with open(star_out_filepath, "w") as f:
+with open(get_output_path(star_out_filename), "w") as f:
     for i in range(ns):
         print(str(w[i]), "\t", modes[0, i].real * scoupling, "\t", modes[0, i].imag * scoupling, file = f)
 
@@ -127,7 +112,7 @@ psi_lc = np.zeros((ns, ntg), dtype = np.cdouble)
 def Ht(t):
     return H
 
-for i, psi in tools_changed_by_me.evolutionpy(start_index = 0, end_index = ntg, H = Ht, dt = dt, initial_state = psi0):
+for i, psi in tools.evolutionpy(start_index = 0, end_index = ntg, H = Ht, dt = dt, initial_state = psi0):
     psi_lc[:, i] = np.copy(psi)
 
 #-------------------------------------------------------------------------------------------------
@@ -144,15 +129,15 @@ if revival > revival_tolerance:
 rho_lc = np.zeros((ns, ns), dtype = np.cdouble)
 
 for i in range(0, ntg):
-    psi = tools_changed_by_me.as_column_vector(psi_lc[:, i])
-    rho_lc += tools_changed_by_me.dyad(psi, psi) * dt
+    psi = tools.as_column_vector(psi_lc[:, i])
+    rho_lc += tools.dyad(psi, psi) * dt
 
-tools_changed_by_me.make_hermitean(rho_lc)
+tools.make_hermitean(rho_lc)
 
 #--------------------------------------------------------------------------------------------------
 
 
-pi, U_rel = tools_changed_by_me.find_largest_eigs(rho_lc)
+pi, U_rel = tools.find_largest_eigs(rho_lc)
 
 lr_metric = pi - rel_tol * pi[0]
 inside_lightcone = lr_metric > 0
@@ -183,14 +168,14 @@ n = n_rel
 
 for i in reversed(range(0, ntg)):
     
-    pi_min, _ = tools_changed_by_me.find_smallest_eigs(rho_ret, 1)
-    pi_max, _ = tools_changed_by_me.find_largest_eigs(rho_ret, 1)
+    pi_min, _ = tools.find_smallest_eigs(rho_ret, 1)
+    pi_max, _ = tools.find_largest_eigs(rho_ret, 1)
 
     lr_metric = pi_min - rel_tol * pi_max
     outside_lightcone = lr_metric < 0
 
     if outside_lightcone:
-        pi, U = tools_changed_by_me.find_eigs_descending(rho_ret)
+        pi, U = tools.find_eigs_descending(rho_ret)
         psi_lc_rel[: n, :] = U.T.conj() @ psi_lc_rel[: n, :]
         U_min[: n, :] = U.T.conj() @ U_min[: n, :]
         rho_ret = np.diag(pi[: -1].astype('cdouble'))
@@ -198,10 +183,10 @@ for i in reversed(range(0, ntg)):
         n = n_rel - len(times_in)
         n_in.insert(0, n) 
 
-    psi = tools_changed_by_me.as_column_vector(psi_lc_rel[: n, i])
-    rho_ret -= tools_changed_by_me.dyad(psi, psi) * dt
+    psi = tools.as_column_vector(psi_lc_rel[: n, i])
+    rho_ret -= tools.dyad(psi, psi) * dt
 
-    tools_changed_by_me.make_hermitean(rho_ret)
+    tools.make_hermitean(rho_ret)
 
 #-------------------------------------------------------------------------------------------------
 
@@ -221,7 +206,7 @@ rho_ret =  np.zeros((n_rel, n_rel), dtype = np.cdouble)
 max_n_coupled = ring_max - 1
 
 rho_adv = U_min @ np.copy(rho_lc_rel) @ U_min.T.conj()
-tools_changed_by_me.make_hermitean(rho_adv)
+tools.make_hermitean(rho_adv)
 
 psi_lc_out = np.copy(psi_lc_rel)
 
@@ -244,7 +229,7 @@ for i in intervals_in:
     if n_coupled > max_n_coupled:
 
         rho_cdi = rho_adv[n_out : n_in, n_out : n_in]
-        pi, U = tools_changed_by_me.find_eigs_ascending(rho_cdi)
+        pi, U = tools.find_eigs_ascending(rho_cdi)
         psi_lc_out[n_out : n_in, i[0] :] = U.T.conj() @ psi_lc_out[n_out : n_in, i[0] :]
 
         rho_adv[n_out : n_in, n_out : ] = U.T.conj() @ rho_adv[n_out : n_in, n_out : ] 
@@ -260,8 +245,8 @@ for i in intervals_in:
 
     for j in range(i[0], i[1]):
 
-        psi = tools_changed_by_me.as_column_vector(psi_lc_out[n_out : , j])
-        rho_adv[n_out : , n_out : ] -= tools_changed_by_me.dyad(psi, psi) * dt
+        psi = tools.as_column_vector(psi_lc_out[n_out : , j])
+        rho_adv[n_out : , n_out : ] -= tools.dyad(psi, psi) * dt
     
 #----------------------------------------------------------------------------------
 
@@ -361,8 +346,8 @@ to_ring = [ _ % m_max + 1 for _ in range(0, n_rel)]
 
 
 # Запись в файл
-with open(intervals_filepath, "w") as f:
-# with open(os.path.join(sys.path[0], "intervals.txt"), "w") as f:
+
+with open(get_output_path(intervals_filename), "w") as f:
 
     for i in intervals_r:
 
@@ -375,9 +360,8 @@ np.set_printoptions(linewidth=np.inf)
 
 couplings = couplings * scoupling
 
-with open(couplings_filepath, "w") as f:
-# with open(os.path.join(sys.path[0], "couplings.txt"), "w") as f:
 
+with open(get_output_path(couplings_filename), "w") as f:
     for i in intervals_r:
 
         b = i[2]
@@ -388,9 +372,7 @@ with open(couplings_filepath, "w") as f:
              print('\t'.join(map(str, couplings[a : b, ti].real)), file = f)
              print('\t'.join(map(str, couplings[a : b, ti].imag)), file = f) 
 
-
-with open(rotations_filepath, "w") as f:
-# with open(os.path.join(sys.path[0], "rotations.txt"), "w") as f: 
+with open(get_output_path(rotations_filename), "w") as f:
 
     for i in intervals_r:
 
@@ -419,15 +401,3 @@ end_time = time.time()
 
 print("The execution time :",
       (end_time-start_time), " sec")
-
-
-
-
-
-
-
-
-    
-
-        
-

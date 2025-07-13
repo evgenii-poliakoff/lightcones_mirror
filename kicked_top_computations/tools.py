@@ -264,19 +264,19 @@ def evolutionpy2(dt, apply_H, eval_O, initial_state, start_time = None, start_in
             eval_O(start_time + i * dt, psi)
 
 class LocalObservables:
-    def __init__(self, f, m_max, n_max, id_s = None):
+    def __init__(self, f, n_spin, m_max, n_max, id_s = None):
     
-        #self.local_observables = self.local_projections(f, m_max, n_max)
-        self.local_observables = self.local_projections_f(f, m_max, n_max, id_s)
+        # self.local_observables = self.local_projections(f, m_max, n_max)
+        self.local_observables = self.local_projections_f(f, n_spin, m_max, n_max, id_s)
 
-    def local_projections_f(self, f, m_max, n_max, id_s):
+    def local_projections_f(self, f, n_spin, m_max, n_max, id_s):
         
         import secondquant
         import local_op
         from scipy.sparse import csc_matrix
         
-        self.K = f.dimension
-        self.local_dim = n_max + 1
+        self.K = f.dimension # total space dim
+        self.local_dim = n_max + 1 # boson mode space dim
         
         a = f.annihilate
         a_dag = f.create
@@ -289,14 +289,10 @@ class LocalObservables:
         o_ptr = np.zeros(self.K + 1, dtype = np.int32)
         for i in range(self.K + 1):
             o_ptr[i] = i
-
-        #print('K = ', self.K)
-        #print('m_max = ', m_max)
-        #print(f.occupations)
-        #print(f.dimension)
         
-        for i in range(0, m_max):
-            
+        for i in range(n_spin, n_spin + m_max):
+        # for i in range(0, m_max):
+
             o = np.array([f.occupations(j)[i] for j in range(self.K)])
             
             a_ = a[i]
@@ -332,104 +328,104 @@ class LocalObservables:
         
         return local_ops
         
-    def local_projections(self, f, m_max, n_max):
-        # construct projections to local hilbertspaces
+    # def local_projections(self, f, m_max, n_max):
+    #     # construct projections to local hilbertspaces
 
-        self.K = f.dimension
+    #     self.K = f.dimension
 
-        a = f.annihilate
-        a_dag = f.create
+    #     a = f.annihilate
+    #     a_dag = f.create
 
-        local_op = []
+    #     local_op = []
 
-        self.local_dim = n_max + 1
+    #     self.local_dim = n_max + 1
 
-        # for each mode
+    #     # for each mode
 
-        for i in range(0, m_max + 1):
+    #     for i in range(0, m_max + 1):
    
-            mode_op = [ [ ([], [], []) for l in range(self.local_dim) ] for k in range(self.local_dim) ]  # ([data], [row], [col])
+    #         mode_op = [ [ ([], [], []) for l in range(self.local_dim) ] for k in range(self.local_dim) ]  # ([data], [row], [col])
 
-            # diagonal 
+    #         # diagonal 
 
-            for j in range(0, self.K):
+    #         for j in range(0, self.K):
 
-                o = f.occupations(j)
-                p = o[i]
-                q = p
+    #             o = f.occupations(j)
+    #             p = o[i]
+    #             q = p
 
-                mode_op[q][p][0].append(1.0)
-                mode_op[q][p][1].append(j)
-                mode_op[q][p][2].append(j)
+    #             mode_op[q][p][0].append(1.0)
+    #             mode_op[q][p][1].append(j)
+    #             mode_op[q][p][2].append(j)
 
-            # upper diagonal
+    #         # upper diagonal
 
-            c_dag = a_dag[i].tocoo()
-            c_dag.eliminate_zeros()
-            row = c_dag.row
-            col = c_dag.col
+    #         c_dag = a_dag[i].tocoo()
+    #         c_dag.eliminate_zeros()
+    #         row = c_dag.row
+    #         col = c_dag.col
 
-            for j in col:
+    #         for j in col:
 
-                o = f.occupations(j)
-                p = o[i]
+    #             o = f.occupations(j)
+    #             p = o[i]
         
-                j_ = j
-                d_ = 1.0
+    #             j_ = j
+    #             d_ = 1.0
 
-                for q in range(p + 1, self.local_dim):
+    #             for q in range(p + 1, self.local_dim):
 
-                    if (not j_ in col):
-                        break
+    #                 if (not j_ in col):
+    #                     break
 
-                    j_ = row[col.tolist().index(j_)]
+    #                 j_ = row[col.tolist().index(j_)]
 
-                    o_ = f.occupations(j_)
+    #                 o_ = f.occupations(j_)
 
-                    assert q == o_[i]
+    #                 assert q == o_[i]
 
 
-                    mode_op[q][p][0].append(d_)
-                    mode_op[q][p][1].append(j_)
-                    mode_op[q][p][2].append(j)
+    #                 mode_op[q][p][0].append(d_)
+    #                 mode_op[q][p][1].append(j_)
+    #                 mode_op[q][p][2].append(j)
 
-            # lower diagonal
+    #         # lower diagonal
 
-            c = a[i].tocoo()
-            c.eliminate_zeros()
-            row = c.row
-            col = c.col
+    #         c = a[i].tocoo()
+    #         c.eliminate_zeros()
+    #         row = c.row
+    #         col = c.col
 
-            for j in col:
+    #         for j in col:
 
-                o = f.occupations(j)
-                p = o[i]
+    #             o = f.occupations(j)
+    #             p = o[i]
         
-                j_ = j
-                d_ = 1.0
+    #             j_ = j
+    #             d_ = 1.0
 
-                for q in reversed(range(0, p)):
+    #             for q in reversed(range(0, p)):
 
-                    if (not j_ in col):
-                        break
+    #                 if (not j_ in col):
+    #                     break
 
-                    j_ = row[col.tolist().index(j_)]
+    #                 j_ = row[col.tolist().index(j_)]
 
-                    o_ = f.occupations(j_)
-                    q = o_[i]
+    #                 o_ = f.occupations(j_)
+    #                 q = o_[i]
 
-                    mode_op[q][p][0].append(d_)
-                    mode_op[q][p][1].append(j_)
-                    mode_op[q][p][2].append(j)
+    #                 mode_op[q][p][0].append(d_)
+    #                 mode_op[q][p][1].append(j_)
+    #                 mode_op[q][p][2].append(j)
 
-            for k in range(self.local_dim):
-                for l in range(self.local_dim):
-                    s = mode_op[k][l]
-                    mode_op[k][l] = coo_matrix((s[0], (s[1], s[2])), shape = (self.K, self.K), dtype = complex).tocsc()
+    #         for k in range(self.local_dim):
+    #             for l in range(self.local_dim):
+    #                 s = mode_op[k][l]
+    #                 mode_op[k][l] = coo_matrix((s[0], (s[1], s[2])), shape = (self.K, self.K), dtype = complex).tocsc()
 
-            local_op.append(mode_op)
+    #         local_op.append(mode_op)
 
-        return local_op
+    #     return local_op
 
     def partial_trace(self, psi, measured_mode):
 
@@ -1011,10 +1007,11 @@ class spin_chain:
 class spin_chain_boson_model:
     def __init__(self, length, num_modes, max_num_quanta):
         import secondquant as sq
+        # local_bounds = [1] * length
         local_bounds = [1] * int(length)
         m_spin = length
         
-        space_spin = sq.fock_space(num_modes = m_spin, max_total_occupation = 2**m_spin, statistics = 'Bose', max_local_occupations = local_bounds)
+        space_spin = sq.fock_space(num_modes = m_spin, max_total_occupation = 2**m_spin, statistics = 'Bose', max_local_occupations=local_bounds)
         
         m_boson = num_modes
         n = max_num_quanta
@@ -1049,11 +1046,48 @@ class spin_chain_boson_model:
 
         self.dimension = hs_joint.dimension
         
+        # self.num_modes = num_modes
         self.max_num_quanta = max_num_quanta
         
     def get_local_observables(self):
-        return LocalObservables(self.hs_joint, self.num_modes, self.max_num_quanta)
+        return LocalObservables(self.hs_joint, self.num_spin, self.num_modes, self.max_num_quanta)
+# class spin_chain_boson_model:
+#     def __init__(self, length, max_num_flips, num_modes, max_num_quanta):
+#         import secondquant as sq
+#         local_bounds = [1]*length
+#         m_spin = length
+#         space_spin = sq.fock_space(num_modes = m_spin, max_total_occupation = max_num_flips, statistics = 'Bose', max_local_occupations = local_bounds)
+        
+#         m_boson = num_modes
+#         n = max_num_quanta
+        
+#         fs_chain = sq.fock_space(num_modes = m_boson, max_total_occupation = n, statistics = 'Bose') 
+#         hs_joint = sq.fock_space_kron(space_spin, fs_chain)
+#         b_hat = hs_joint.annihilate
+#         b_hat_dag = hs_joint.create
 
+#         a_hat = b_hat[m_spin:]
+#         a_hat_dag = b_hat_dag[m_spin:]
+        
+#         self.space = space_spin
+        
+#         self.sm = space_spin.annihilate
+#         self.sp = space_spin.create
+        
+#         self.sx = [space_spin.sigmax(i) for i in range(m_spin)]
+#         self.sy = [space_spin.sigmay(i) for i in range(m_spin)]
+#         self.sz = [space_spin.sigmaz(i) for i in range(m_spin)]
+        
+#         self.num_modes = length
+#         #self.max_num_quanta = max_num_quanta
+        
+#         self.dimension = hs_joint.dimension
+
+#         self.hs_joint = hs_joint
+#         self.a = a_hat
+#         self.a_dag = a_hat_dag
+
+#         #self.id_s = id_s
 
 class top_boson_model:
     def __init__(self, j, num_modes, max_num_quanta):
