@@ -238,6 +238,8 @@ import lightcones.jumps as jumps
 
 import lightcones.space as space
 
+from lightcones.constructor import constructor
+
 __all__ = ['linalg',
            'space',
            'bounding_condition',
@@ -252,4 +254,5 @@ __all__ = ['linalg',
            'get_inout_range',
            'causal_diamond_frame',
            'moving_frame',
-           'get_H']
+           'get_H',
+           'constructor']
