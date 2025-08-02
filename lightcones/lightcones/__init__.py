@@ -138,10 +138,22 @@ def m_in(times_in, ti):
             return i + 1
     raise ValueError("Index is out of maximal time")
 
+def get_incoming_time(times_in, m_in_):
+    ti = times_in[m_in_ - 1]
+    m_in_actual = m_in(times_in, ti)
+    assert m_in_ == m_in_actual
+    return ti
+
 def get_inout_range(times_in, ti, m):
     _m_in = m_in(times_in, ti)
     _m_out = max(_m_in - m, 0)
     return _m_out, _m_in
+
+def get_outgoing_time(times_in, m_out, m):
+    ti = times_in[m_out + m - 1]
+    m_out_actual, _ = get_inout_range(times_in, ti, m)
+    assert m_out == m_out_actual
+    return ti
 
 def causal_diamond_frame(spread_min, times_in, U_min, rho_plus_min, dt, rtol, m):
     
