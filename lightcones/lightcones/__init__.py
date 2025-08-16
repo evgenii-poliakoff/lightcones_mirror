@@ -155,6 +155,9 @@ def get_outgoing_time(times_in, m_out, m):
     assert m_out == m_out_actual
     return ti
 
+def get_outgoing_times(times_in, m):
+    return times_in[m :]
+
 def causal_diamond_frame(spread_min, times_in, U_min, rho_plus_min, dt, rtol, m):
     
     # spread in the causal diamond frame
@@ -262,6 +265,7 @@ __all__ = ['linalg',
            'minimal_forward_frame',
            'm_in',
            'get_inout_range',
+           'get_outgoing_times',
            'causal_diamond_frame',
            'moving_frame',
            'get_H']
