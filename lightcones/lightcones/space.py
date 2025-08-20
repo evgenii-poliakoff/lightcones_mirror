@@ -183,7 +183,7 @@ class spins:
         self.states = states
         self.j = j
 
-        more_than_2j = bounding_condition.more_than_n_occupied(2 * j)
+        more_than_2j = bounding_condition.more_than_n_occupied(round(2 * j))
         
         #
         self.zero = coo_matrix((self.states.dimension , self.states.dimension), dtype = complex).tocsc()      
