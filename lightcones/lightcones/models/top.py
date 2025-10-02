@@ -45,8 +45,9 @@ class top:
     # state with given j_z
     def state_with(self, j_z):
         p = j_z + self.j
+        p = round(p)
         state = self.vac()
-        for i in range(p):
+        for _ in range(p):
             state = self.j_p @ state 
         state = state / math.sqrt(np.vdot(state, state).real)
         return state

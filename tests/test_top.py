@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import pytest
 import lightcones.linalg as ll
 import lightcones.space as sp
@@ -185,3 +186,33 @@ def test_top_state_with():
      state = t.state_with(j_z=5)
      j_z = np.vdot(state, t.j_z @ state).real
      assert abs(j_z - 5) < tol
+
+def test_top_state_with_half_spin():
+
+    t = top(0.5)
+    # should return vacuum state
+    state = t.state_with(j_z=-0.5)
+    vac = t.vac()
+    infidelity = 1.0 - np.vdot(state, vac)
+    assert abs(infidelity) < tol
+    # should return excited state
+    state = t.state_with(j_z=0.5)
+    vac = t.j_p @ t.vac()
+    infidelity = 1.0 - np.vdot(state, vac)
+    assert abs(infidelity) < tol
+
+    #
+    j = 5.5 
+    t = top(j)
+    # should return vacuum state
+    state = t.state_with(j_z=-j)
+    vac = t.vac()
+    infidelity = 1.0 - np.vdot(state, vac)
+    assert abs(infidelity) < tol
+    # should return excited state
+    state = t.state_with(j_z=-j + 3)
+    state_expected = t.vac()
+    for m in [-j, -j + 1, -j + 2]:
+        state_expected = t.j_p @ state_expected / math.sqrt((j - m) * (j + m + 1))
+    infidelity = 1.0 - np.vdot(state, state_expected)
+    assert abs(infidelity) < tol
