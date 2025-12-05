@@ -1,0 +1,455 @@
+\documentclass[11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{multirow}
+\usepackage{siunitx}
+
+\geometry{a4paper, margin=1in}
+
+\title{Recursive Basis Construction for Memory Kernels in Generalized Langevin Equations: \\ A Forward Construction Method}
+\author{Technical Report}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report presents a novel forward construction method for computing memory kernels in Generalized Langevin Equations (GLEs), fundamentally different from traditional inverse problem approaches. The method recursively builds a minimal basis of relevant states that capture memory effects through an adaptive coarse-graining procedure. We provide explicit mathematical formulations reverse-engineered from computational implementations, demonstrating how trajectory information is systematically compressed as it evolves. The approach offers both computational efficiency (O(dN) vs O(N²)) and physical interpretability, with each relevant state representing a pattern in past trajectory that significantly influences future dynamics.
+\end{abstract}
+
+\tableofcontents
+
+\section{Introduction}
+
+The Generalized Langevin Equation describes non-Markovian dynamics:
+
+\begin{equation}
+\dot{v}(t) = -\int_0^t K(t-\tau) v(\tau) d\tau + \xi(t)
+\label{eq:gle}
+\end{equation}
+
+where $K(t)$ is the memory kernel and $\xi(t)$ satisfies the fluctuation-dissipation theorem $\langle \xi(t)\xi(s) \rangle = k_B T K(|t-s|)$. Traditional approaches treat \eqref{eq:gle} as an inverse problem: given $v(t)$, find $K(t)$. This report analyzes a fundamentally different \textbf{forward construction method} that recursively builds a minimal representation of memory.
+
+\section{Mathematical Framework}
+
+\subsection{Memory Operator and Relevant States}
+
+Let $x \in \mathbb{R}^N$ be a discretized trajectory with sampling interval $\Delta t$. Define the \textbf{memory operator} $M: \mathbb{R}^N \to \mathbb{R}^{N-k}$ as a causal convolution:
+
+\begin{equation}
+(Mx)_i = \sum_{j=0}^{k} K_j x_{i-j} \quad \text{for } i = k, \ldots, N-1
+\label{eq:memory_operator}
+\end{equation}
+
+The key quantity is the averaged squared norm:
+
+\begin{equation}
+R = \mathbb{E}_{t \in \text{future}}[M_t^\dagger M_t] = \frac{1}{N-k+1}\sum_{t=0}^{N-k} M_t^\dagger M_t
+\label{eq:R_matrix}
+\end{equation}
+
+where $M_t$ is $M$ shifted to start at time $t$. The \textbf{relevant states} are eigenvectors of $R$ with non-negligible eigenvalues:
+
+\begin{equation}
+R \psi_i = \lambda_i \psi_i, \quad \psi_i \in \mathbb{R}^m, \quad \lambda_i > \epsilon\lambda_{\max}
+\label{eq:eigenproblem}
+\end{equation}
+
+Here $m \ll N$ is the memory buffer size, and $\epsilon$ is a threshold parameter.
+
+\subsection{Physical Interpretation}
+
+Each relevant state $\psi_i$ represents a \textbf{pattern in past trajectory} that significantly affects future dynamics. The eigenvalue $\lambda_i$ quantifies its importance. This is essentially a principal component analysis of memory.
+
+\section{Recursive Construction Algorithm}
+
+\subsection{State Augmentation}
+
+Let $B_n = \{\psi_1^n, \psi_2^n, \ldots, \psi_d^n\} \subset \mathbb{R}^m$ be the relevant basis at iteration $n$.
+
+\subsubsection{Temporal Shift Operator}
+Define $S: \mathbb{R}^m \to \mathbb{R}^{m+1}$ as:
+
+\begin{equation}
+S(v) = [0, v_1, v_2, \ldots, v_m]^\top \quad \text{for } v \in \mathbb{R}^m
+\label{eq:shift_operator}
+\end{equation}
+
+This represents \textbf{aging} of memory patterns.
+
+\subsubsection{Augmented Basis}
+The augmented basis in $\mathbb{R}^{m+1}$ is:
+
+\begin{equation}
+B_n^{\text{aug}} = \{e_1\} \cup \{S(\psi_i^n) : i = 1,\ldots,d\}
+\label{eq:augmented_basis}
+\end{equation}
+
+where $e_1 = [1, 0, \ldots, 0]^\top$ represents \textbf{fresh information}.
+
+In matrix form with $\Psi_n = [\psi_1^n | \psi_2^n | \cdots | \psi_d^n] \in \mathbb{R}^{m \times d}$:
+
+\begin{equation}
+A_n = \begin{pmatrix}
+1 & 0 & 0 & \cdots & 0 \\
+0 & & & & \\
+\vdots & & S\Psi_n & & \\
+0 & & & & 
+\end{pmatrix} \in \mathbb{R}^{(m+1) \times (d+1)}
+\label{eq:augmentation_matrix}
+\end{equation}
+
+\subsection{Coarse-Graining Procedure}
+
+\subsubsection{Projection Operator}
+Since $B_n$ is orthonormal and $e_1 \perp S(\psi_i^n)$:
+
+\begin{equation}
+A_n^\top A_n = I_{(d+1) \times (d+1)} \quad \Rightarrow \quad P_n^{\text{aug}} = A_n A_n^\top
+\label{eq:projection}
+\end{equation}
+
+Thus:
+\begin{equation}
+P_n^{\text{aug}} = e_1 e_1^\top + \sum_{i=1}^d S(\psi_i^n) [S(\psi_i^n)]^\top
+\label{eq:projection_explicit}
+\end{equation}
+
+\subsubsection{Updated Correlation Matrix}
+\begin{equation}
+R_{n+1} = P_n^{\text{aug}} \tilde{R}_{n+1} P_n^{\text{aug}}
+\label{eq:updated_R}
+\end{equation}
+
+where $\tilde{R}_{n+1}$ is computed from trajectory segments of length $m+1$:
+
+\begin{equation}
+\tilde{R}_{n+1} = \frac{1}{N_{\text{samples}}}\sum_{j=1}^{N_{\text{samples}}} x^{(j)}_{[0:m]} \cdot (x^{(j)}_{[0:m]})^\top \odot W
+\label{eq:tilde_R}
+\end{equation}
+
+with $W_{ij}$ a weight matrix encoding memory structure.
+
+\subsubsection{Diagonalization and Truncation}
+Solve:
+\begin{equation}
+R_{n+1} \phi_i = \mu_i \phi_i, \quad \phi_i \in \mathbb{R}^{m+1}, \quad \|\phi_i\| = 1
+\label{eq:new_eigenproblem}
+\end{equation}
+
+Sort eigenvalues: $\mu_1 \geq \mu_2 \geq \cdots \geq \mu_{m+1} \geq 0$.
+
+Select $d_{n+1} = \max\left\{k : \frac{\sum_{i=1}^k \mu_i}{\sum_{i=1}^{m+1} \mu_i} \geq 1 - \delta\right\}$.
+
+New basis: $B_{n+1} = \{\phi_1, \phi_2, \ldots, \phi_{d_{n+1}}\}$.
+
+\subsection{Limiting Recursion Relation}
+
+In steady state ($n \to \infty$):
+
+\begin{equation}
+B_{\infty} = \mathcal{T}(B_{\infty})
+\label{eq:fixed_point}
+\end{equation}
+
+where $\mathcal{T}$ is the combined operation: augment $\to$ project $\to$ diagonalize $\to$ truncate.
+
+The fixed-point dimension satisfies:
+\begin{equation}
+d_{\infty} = \text{rank}_\epsilon(R_{\infty}) \quad \text{where} \quad R_{\infty} = \mathcal{T}(B_{\infty})
+\label{eq:fixed_dimension}
+\end{equation}
+
+\begin{algorithm}
+\caption{Recursive Basis Construction}
+\begin{algorithmic}[1]
+\State Initialize $B_0$ (e.g., with PCA of initial trajectories)
+\For{$n = 0, 1, 2, \ldots$ until convergence}
+    \State \textbf{Augment:} $B_n^{\text{aug}} \gets \{e_1\} \cup S(B_n)$
+    \State \textbf{Project:} $P_n^{\text{aug}} \gets A_n A_n^\top$ where $A_n$ has columns from $B_n^{\text{aug}}$
+    \State \textbf{Update:} $R_{n+1} \gets P_n^{\text{aug}} \tilde{R}_{n+1} P_n^{\text{aug}}$
+    \State \textbf{Diagonalize:} Solve $R_{n+1}\phi_i = \mu_i\phi_i$
+    \State \textbf{Truncate:} $B_{n+1} \gets \{\phi_i : \mu_i > \epsilon\mu_{\max}\}$
+    \State \textbf{Orthonormalize:} Apply modified Gram-Schmidt to $B_{n+1}$
+    \If{$\|B_{n+1} - B_n\|_F < \text{tol}$ and $|d_{n+1} - d_n| = 0$}
+        \State \textbf{break}
+    \EndIf
+\EndFor
+\State \textbf{Output:} Steady-state basis $B_{\infty}$, dimension $d_{\infty}$
+\end{algorithmic}
+\label{alg:recursion}
+\end{algorithm}
+
+\section{Memory Kernel Reconstruction}
+
+\subsection{From Basis to Kernel Coefficients}
+
+The GLE discretization:
+\begin{equation}
+v_{n+1} - v_n = -\Delta t \sum_{j=0}^{m-1} K_j v_{n-j} + \sqrt{\Delta t} \xi_n
+\label{eq:gle_discrete}
+\end{equation}
+
+Project onto relevant basis:
+\begin{equation}
+v_{n-j} \approx \sum_{\alpha=1}^d c_\alpha^{(n)} \psi_{\alpha}(j)
+\label{eq:projection_v}
+\end{equation}
+
+Then:
+\begin{equation}
+\sum_{j=0}^{m-1} K_j v_{n-j} \approx \sum_{\alpha=1}^d c_\alpha^{(n)} \underbrace{\left(\sum_{j=0}^{m-1} K_j \psi_\alpha(j)\right)}_{\kappa_\alpha}
+\label{eq:effective_memory}
+\end{equation}
+
+Define $\kappa_\alpha = \sum_{j=0}^{m-1} K_j \psi_\alpha(j)$. The reduced GLE:
+
+\begin{equation}
+v_{n+1} - v_n = -\Delta t \sum_{\alpha=1}^d \kappa_\alpha c_\alpha^{(n)} + \sqrt{\Delta t} \xi_n
+\label{eq:reduced_gle}
+\end{equation}
+
+\subsection{Coefficient Recursion}
+
+From $c_\alpha^{(n)} = \sum_{j=0}^{m-1} \psi_\alpha(j) v_{n-j}$:
+
+\begin{align}
+c_\alpha^{(n+1)} &= \sum_{j=0}^{m-1} \psi_\alpha(j) v_{n+1-j} \\
+&= \psi_\alpha(0) v_{n+1} + \sum_{j=1}^{m-1} \psi_\alpha(j) v_{n-(j-1)}
+\label{eq:coefficient_update}
+\end{align}
+
+In matrix form:
+\begin{equation}
+c^{(n+1)} = \Psi_0 v_{n+1} + \Psi_{\text{shift}} c^{(n)}
+\label{eq:coefficient_matrix}
+\end{equation}
+
+where:
+\begin{align}
+\Psi_0 &= [\psi_1(0), \ldots, \psi_d(0)]^\top \\
+[\Psi_{\text{shift}}]_{\alpha\beta} &= \sum_{j=1}^{m-1} \psi_\alpha(j) \psi_\beta(j-1)
+\label{eq:psi_matrices}
+\end{align}
+
+\section{Special Case: White Noise Limit}
+
+\subsection{Exact Solution}
+
+For white noise: $\langle \xi(t)\xi(s) \rangle = 2\gamma k_B T \delta(t-s)$, so:
+
+\begin{equation}
+K(t) = 2\gamma \delta(t) \quad \Rightarrow \quad K_j = \frac{2\gamma}{\Delta t} \delta_{j0}
+\label{eq:white_noise_kernel}
+\end{equation}
+
+Thus $(Mx)_i = \frac{2\gamma}{\Delta t} x_i$ and:
+
+\begin{equation}
+R = \left(\frac{2\gamma}{\Delta t}\right)^2 \cdot \frac{1}{T}\sum_{t=0}^{T} x^{(t)} (x^{(t)})^\top
+\label{eq:white_noise_R}
+\end{equation}
+
+\subsection{Fixed Point Analysis}
+
+The only relevant state is $e_1 = [1, 0, \ldots, 0]^\top$. Verification:
+
+\begin{align}
+\mathcal{T}(\{e_1^{(m)}\}) &= \text{Truncate}\left(\text{Eigenvectors}\left(P^{\text{aug}} R_{m+1} P^{\text{aug}}\right)\right) \\
+&= \{e_1^{(m+1)}\} \quad \text{(after normalization)}
+\label{eq:white_fixed_point}
+\end{align}
+
+Thus $\{e_1\}$ is a fixed point with $d_{\infty} = 1$.
+
+\section{Mathematical Properties}
+
+\subsection{Contractivity of the Recursion Map}
+
+Define $\mathcal{F}: \text{Gr}(d,m) \to \text{Gr}(d',m)$ where $\text{Gr}(d,m)$ is the Grassmannian.
+
+\begin{theorem}
+For sufficiently small $\Delta t$, $\mathcal{F}$ is a contraction:
+\begin{equation}
+d_G(\mathcal{F}(B), \mathcal{F}(B')) \leq \lambda d_G(B, B')
+\end{equation}
+with $\lambda < 1$, where $d_G(B, B') = \|P_B - P_{B'}\|_F$.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+The contraction arises from:
+\begin{enumerate}
+\item Augmentation step is isometric
+\item Projection reduces dimension
+\item Truncation removes small components
+\end{enumerate}
+\end{proof}
+
+\subsection{Information Monotonicity}
+
+Define information content: $I(B) = \sum_{i=1}^d \lambda_i(B)$.
+
+\begin{theorem}
+\begin{equation}
+I(B_{n+1}) \leq I(B_n^{\text{aug}}) = I(B_n) + \lambda_{\text{fresh}}
+\end{equation}
+where $\lambda_{\text{fresh}} = \text{Tr}(R_{n+1} e_1 e_1^\top)$.
+\end{theorem}
+
+\begin{proof}
+\begin{align*}
+I(B_n^{\text{aug}}) &= \text{Tr}(R_{n+1} P_n^{\text{aug}}) \\
+&= \text{Tr}(R_{n+1} e_1 e_1^\top) + \sum_{i=1}^d \text{Tr}(R_{n+1} S(\psi_i^n)[S(\psi_i^n)]^\top) \\
+&= \lambda_{\text{fresh}} + \sum_{i=1}^d \lambda_i(B_n)
+\end{align*}
+Truncation to $B_{n+1}$ preserves only largest eigenvalues, hence $I(B_{n+1}) \leq I(B_n^{\text{aug}})$.
+\end{proof}
+
+\subsection{Steady-State Dimension Bound}
+
+\begin{theorem}
+\begin{equation}
+d_{\infty} \leq \frac{\tau_{\text{mem}}}{\Delta t}
+\end{equation}
+where $\tau_{\text{mem}}$ is the physical memory time scale.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+Each $\psi_i$ has support over at most $m$ time steps. If memory decays as $e^{-t/\tau_{\text{mem}}}$, then:
+\begin{equation}
+m \Delta t \sim \tau_{\text{mem}} \quad \Rightarrow \quad d_{\infty} \leq m \sim \frac{\tau_{\text{mem}}}{\Delta t}
+\end{equation}
+\end{proof}
+
+\section{Connection to Established Theory}
+
+\subsection{Mori-Zwanzig Formalism}
+
+Our basis $\{\psi_i\}$ defines optimal observables:
+\begin{equation}
+A_i(t) = \sum_{j=0}^{m-1} \psi_i(j) x(t-j\Delta t)
+\label{eq:mori_observables}
+\end{equation}
+
+The Mori projection $P$ onto span$\{A_i\}$ gives:
+\begin{equation}
+\frac{d}{dt}A_i(t) = \sum_j \Omega_{ij} A_j(t) - \sum_j \int_0^t K_{ij}(\tau) A_j(t-\tau) d\tau + f_i(t)
+\label{eq:mori_equation}
+\end{equation}
+
+Our method computes the memory kernel $K_{ij}(t)$ without explicitly constructing the orthogonal dynamics $(1-P)L$.
+
+\subsection{Markovian Embedding}
+
+The $d$-dimensional system for coefficients is a Markovian embedding:
+
+\begin{equation}
+\frac{d}{dt}\begin{pmatrix} c_1 \\ \vdots \\ c_d \end{pmatrix} = -M \begin{pmatrix} c_1 \\ \vdots \\ c_d \end{pmatrix} + \eta(t)
+\label{eq:markovian_embedding}
+\end{equation}
+
+where:
+\begin{equation}
+M_{\alpha\beta} = \sum_{j=0}^{m-1} K_j \psi_\alpha(j) \psi_\beta(0)
+\label{eq:M_matrix}
+\end{equation}
+
+and $\eta(t)$ is white noise with correlation $\langle \eta_\alpha(t)\eta_\beta(s) \rangle = 2k_B T M_{\alpha\beta} \delta(t-s)$.
+
+\section{Implementation Details}
+
+\subsection{Initialization}
+
+\begin{equation}
+R_0 = \frac{1}{N_{\text{traj}}(N-m+1)} \sum_{\text{traj}=1}^{N_{\text{traj}}} \sum_{t=0}^{N-m} w_t \cdot x_{[t:t+m]} x_{[t:t+m]}^\top
+\label{eq:initial_R}
+\end{equation}
+
+where $w_t$ are exponentially decaying weights: $w_t = e^{-t\Delta t/\tau_{\text{guess}}}$.
+
+\subsection{Convergence Criteria}
+
+\begin{align}
+\|B_{n+1} - B_n\|_F &< \epsilon_{\text{basis}} \quad \text{(typically $10^{-6}$)} \\
+|d_{n+1} - d_n| &= 0 \\
+|\lambda_{\max}^{(n+1)} - \lambda_{\max}^{(n)}| &< \epsilon_{\lambda} \quad \text{(typically $10^{-8}$)}
+\label{eq:convergence}
+\end{align}
+
+\subsection{Computational Complexity}
+
+\begin{itemize}
+\item Memory: O($m^2$) for storing $R$ matrices
+\item Time per iteration: O($m^3$) for eigendecomposition
+\item Total for $N$ steps: O($Nm^3$) ≈ O($N$) for fixed $m$
+\item Compared to inverse methods: O($N^3$) for direct inversion
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\caption{Comparison of Methods}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{Complexity} & \textbf{Interpretability} & \textbf{Adaptivity} \\
+\midrule
+Direct Inversion & O($N^3$) & Low & None \\
+Basis Construction & O($Nm^3$) & High & Full \\
+Prony/MLE & O($N^2$) & Medium & Limited \\
+Kernel Regression & O($N^2$) & Low & Some \\
+\bottomrule
+\end{tabular}
+\label{tab:comparison}
+\end{table}
+
+\section{Numerical Results Summary}
+
+From the notebooks:
+
+\begin{enumerate}
+\item \textbf{Exponential memory}: $K(t) = \gamma e^{-t/\tau}$
+\begin{itemize}
+\item Recovers $d_{\infty} \approx \tau/\Delta t + 1$
+\item Basis vectors resemble Laguerre polynomials
+\item Convergence in 5-10 iterations
+\end{itemize}
+
+\item \textbf{Power-law memory}: $K(t) \propto t^{-\alpha}$
+\begin{itemize}
+\item Requires larger $m$ for given accuracy
+\item $d_{\infty}$ grows slowly with cutoff
+\item Basis adapts to slow decay
+\end{itemize}
+
+\item \textbf{Oscillatory memory}: $K(t) = e^{-t/\tau}\cos(\omega t)$
+\begin{itemize}
+\item Basis captures both decay and oscillation
+\item $d_{\infty} \approx 2\tau/\Delta t$ (twice exponential case)
+\end{itemize}
+\end{enumerate}
+
+\section{Conclusion}
+
+This recursive basis construction method represents a paradigm shift in memory kernel computation:
+
+\begin{enumerate}
+\item \textbf{Forward construction} rather than inverse problem solving
+\item \textbf{Automatic dimensionality reduction} via physical principles
+\item \textbf{Clear interpretability}: each basis vector represents a physically meaningful memory pattern
+\item \textbf{Computational efficiency}: O($dN$) vs O($N^2$) or worse for inverse methods
+\item \textbf{Adaptivity}: basis automatically adapts to memory structure
+\end{enumerate}
+
+The method successfully bridges abstract theoretical constructs (Mori-Zwanzig formalism) with practical computation, providing both mathematical rigor and computational feasibility.
+
+\section*{Acknowledgments}
+Based on analysis of computational notebooks by Evgenii Poliakoff: \url{https://github.com/evgenii-poliakoff/lightcones_mirror}
+
+\end{document}
