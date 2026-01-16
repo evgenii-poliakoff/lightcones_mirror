@@ -1,44 +1,18 @@
 stages:
-  - setup
-  - build
-  - test
+  - setup_build_test
 
-setup:
-  stage: setup
+setup_build_test:
+  stage: setup_build_test
   script:
     - echo "Enter setup stage..."
     - ./scripts/install_requirements.sh
+    - ./scripts/clean.sh
     - ./scripts/ensure_conda_env.sh
-  artifacts:
-    untracked: true
-    paths:
-      - ./conda-env/
-  tags:
-    - ar
-    #- alba
-
-build:
-  stage: build
-  script: 
-    - echo "Enter build state..."
     - ./scripts/build.sh
     - ./scripts/install.sh
-  artifacts:
-    untracked: true
-    paths:
-      - ./conda-env/
-  tags:
-    - ar
-    #- alba
-  
-test:
-  stage: test
-  script:
-    - echo "Enter test stage..."
     - ./scripts/run_tests.sh
   artifacts:
     when: always
-    untracked: true
     paths:
       - tests/test_artifacts/*.txt
     expire_in: 4 week
