@@ -35,6 +35,17 @@ fi
 echo "INFO Creating conda environment in '${conda_env_dir}' directory"
 
 eval "$($HOME/miniforge3/bin/conda shell.bash hook)"
+
+echo "INFO: Downloading required conda packages..."
+# Цикл будет перезапускать команду, пока всё не скачается на 100%
+until conda create -y --prefix "${conda_env_dir}" python=3.12 --download-only; do
+  echo "Connection lost. Retrying download ..."
+  sleep 2
+done
+
 conda create -y --prefix "${conda_env_dir}" python=3.12
-conda install -y --prefix "${conda_env_dir}" --file "${script_dir}"/requirements.txt
+
+echo "INFO: Installing packages from cache..."
+conda install -y --prefix "${conda_env_dir}" --file "${script_dir}/requirements.txt"
+
 conda run --prefix "${conda_env_dir}" python3 -m ipykernel install --user --name lightcones-env --display-name "lightcones-env"

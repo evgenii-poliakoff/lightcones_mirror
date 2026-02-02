@@ -28,6 +28,14 @@ pushd "${repo_dir}"
 bash ./Miniforge3-25.3.0-1-Linux-x86_64.sh -b
 popd
 
-echo INFO Installing conda-build
 eval "$($HOME/miniforge3/bin/conda shell.bash hook)"
+
+echo "INFO: Downloading conda-build..."
+# Цикл будет перезапускать команду, пока всё не скачается на 100%
+until conda install -y conda-build --download-only; do
+  echo "Connection lost. Retrying download of conda-build..."
+  sleep 2
+done
+
+echo "INFO: Installing conda-build from cache..."
 conda install -y conda-build
