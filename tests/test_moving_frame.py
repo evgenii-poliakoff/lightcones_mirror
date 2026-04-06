@@ -26,14 +26,14 @@ def test_moving_frame():
     nt = 10000
 
     # spread
-    spread = lc.spread(es, hs, nt, dt)
+    spread = lc.metric.spread(es, hs, nt, dt)
 
     # rho_plus
-    rho_plus = lc.rho_plus(spread, dt)
+    rho_plus = lc.metric.rho_plus(spread, dt)
 
     # minimal light cone
     rtol = 10**(-4)
-    ti_arrival, spread_min, U_min, rho_plus_min = lc.minimal_forward_frame(spread, rho_plus, dt, rtol)
+    ti_arrival, spread_min, U_min, rho_plus_min = lc.frames.minimal_forward(spread, rho_plus, dt, rtol)
     
     # only check first n_rel coefficients in spread
     # because the modes which are irrelevant for the
@@ -61,7 +61,7 @@ def test_moving_frame():
     comm_actual = []
     
     for ti in range(0, nt, 10):
-        m_in = lc.m_in(ti_arrival, ti)
+        m_in = lc.frames.m_in(ti_arrival, ti)
         for tj in range(ti, nt, 10):
             comm_expected.append(np.vdot(spread_min_expected[: m_in, ti],  spread_min_expected[: m_in, tj]))
             comm_actual.append(np.vdot(spread_min[: m_in, ti],  spread_min[: m_in, tj]))
@@ -95,15 +95,15 @@ def test_moving_frame():
     # causal diamond frame
     
     cd_dim = 4
-    spread_cd, U_cd = lc.causal_diamond_frame(spread_min, ti_arrival, U_min, rho_plus_min, dt, rtol, cd_dim)
+    spread_cd, U_cd = lc.frames.causal_diamonds.fixed(spread_min, ti_arrival, U_min, rho_plus_min, dt, rtol, cd_dim)
     
     # test commutator
     
     comm_cd_actual = []
     for ti in range(0, nt, 10):
-        m_out, m_in = lc.get_inout_range(ti_arrival, ti, cd_dim)
+        m_out, m_in = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, ti, cd_dim)
         for tj in range(ti, nt, 10):
-            m_out_, m_in_ = lc.get_inout_range(ti_arrival, tj, cd_dim)
+            m_out_, m_in_ = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, tj, cd_dim)
             vec_1 = spread_cd[: m_in, ti]
             vec_2 = spread_cd[: m_in_, tj]
             if (m_in_ > m_in):
@@ -126,15 +126,15 @@ def test_moving_frame():
         ind = ind + 1
         
     # moving frame
-    spread_mv, H_mv = lc.moving_frame(spread_cd, ti_arrival, U_cd, dt, cd_dim)
+    spread_mv, H_mv = lc.frames.causal_diamonds.moving(spread_cd, ti_arrival, U_cd, dt, cd_dim)
     
     # test moving frame
     spread_cd_actual = np.copy(spread_mv)
     for ti in range(nt):
-        a, _ = lc.get_inout_range(ti_arrival, ti, cd_dim)
+        a, _ = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, ti, cd_dim)
         for i in range(a, ti + 1):
-            m_out__, m_in__ = lc.get_inout_range(ti_arrival, i, cd_dim)
-            H = lc.get_H(ti_arrival, H_mv, i)
+            m_out__, m_in__ = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, i, cd_dim)
+            H = lc.frames.causal_diamonds.get_H(ti_arrival, H_mv, i)
             if not H is None:
                 dU = expm(-dt * H)
                 spread_cd_actual[m_out__ : m_in__, ti] = dU @ spread_cd_actual[m_out__ : m_in__, ti]
@@ -143,9 +143,9 @@ def test_moving_frame():
 
     comm_cd_actual = []
     for ti in range(0, nt, 10):
-        m_out, m_in = lc.get_inout_range(ti_arrival, ti, cd_dim)
+        m_out, m_in = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, ti, cd_dim)
         for tj in range(ti, nt, 10):
-            m_out_, m_in_ = lc.get_inout_range(ti_arrival, tj, cd_dim)
+            m_out_, m_in_ = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, tj, cd_dim)
             vec_1 = spread_cd_actual[: m_in, ti]
             vec_2 = spread_cd_actual[: m_in_, tj]
             if (m_in_ > m_in):
@@ -173,7 +173,7 @@ def test_moving_frame():
     for ti in range(0, nt, 100):
         m_in = lc.m_in(ti_arrival, ti)
         for tj in range(ti, nt, 100):
-            m_in_ = lc.m_in(ti_arrival, tj)
+            m_in_ = lc.frames.m_in(ti_arrival, tj)
             vec_1 = spread_min_expected[: m_in, ti]
             vec_2 = spread_min_expected[: m_in_, tj]
             if (m_in_ > m_in):
@@ -182,16 +182,16 @@ def test_moving_frame():
     
     comm_mv_actual = []
     for ti in range(0, nt, 100):
-        m_out, m_in = lc.get_inout_range(ti_arrival, ti, cd_dim)
+        m_out, m_in = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, ti, cd_dim)
         for tj in range(ti, nt, 100):
-            m_out_, m_in_ = lc.get_inout_range(ti_arrival, tj, cd_dim)
+            m_out_, m_in_ = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, tj, cd_dim)
             vec_1 = spread_mv[: m_in, ti]
             vec_2 = spread_mv[: m_in_, tj]
             if (m_in_ > m_in):
                 vec_1 = np.concatenate((vec_1, np.zeros(m_in_ - m_in)))
             
             for i in range(ti + 1, tj + 1):
-                m_out__, m_in__ = lc.get_inout_range(ti_arrival, i, cd_dim)
+                m_out__, m_in__ = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, i, cd_dim)
                 H = lc.get_H(ti_arrival, H_mv, i)
                 if not H is None:
                     dU = expm(dt * H)
