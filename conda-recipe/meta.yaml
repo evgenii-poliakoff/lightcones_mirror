@@ -1,21 +1,22 @@
 package:
   name: lightcones
   version: "0.0.1"
-
+build:
+  number: 0
 source:
   path: ../lightcones
-
 requirements:
   host:
     - {{ compiler('c') }}
     - {{ compiler('fortran') }}
-    - python=3.12
-    - numpy=2.3
-    - scipy=1.15
+    - python
+    - numpy
+    - scipy
     - meson
     - ninja
-
   run:
-    - python=3.12
-    - numpy=2.3
-    - scipy=1.15
+    - python
+    - numpy
+    - scipy
+outputs:
+  - name: lightcones

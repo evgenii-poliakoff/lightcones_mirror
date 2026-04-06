@@ -24,14 +24,14 @@ def compute_s_z_av():
     nt = 10000
 
     # spread
-    spread = lc.spread(es, hs, nt, dt)
+    spread = lc.metric.spread(es, hs, nt, dt)
 
     # rho_plus
-    rho_plus = lc.rho_plus(spread, dt)
+    rho_plus = lc.metric.rho_plus(spread, dt)
 
     # minimal forward light cone
     rtol = 10**(-4)
-    ti_arrival, spread_min, U_min, rho_plus_min = lc.minimal_forward_frame(spread, rho_plus, dt, rtol)
+    ti_arrival, spread_min, U_min, rho_plus_min = lc.frames.minimal_forward(spread, rho_plus, dt, rtol)
     
     # Now solve the spin boson model in the minimal forward frame
     num_modes = 15
@@ -62,7 +62,7 @@ def compute_s_z_av():
     compute_s_z_av.Hint = m.space.zero_op
 
     def begin_step(ti, psi):
-        m_in = lc.m_in(ti_arrival, ti)
+        m_in = lc.frames.m_in(ti_arrival, ti)
         if m_in > 0:
             compute_s_z_av.Hint = V_dag @ sum(spread_min[: m_in, ti] * m.a[: m_in])
             compute_s_z_av.Hint = compute_s_z_av.Hint + compute_s_z_av.Hint.conj().transpose()

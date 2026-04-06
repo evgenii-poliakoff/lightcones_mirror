@@ -33,21 +33,21 @@ class mvf:
         nt = 10000
 
         # spread
-        spread = lc.spread(es, hs, nt, dt)
+        spread = lc.metric.spread(es, hs, nt, dt)
 
         # rho_plus
-        rho_plus = lc.rho_plus(spread, dt)
+        rho_plus = lc.metric.rho_plus(spread, dt)
 
         # minimal forward light cone
         rtol = 10**(-4)
-        ti_arrival, spread_min, U_min, rho_plus_min = lc.minimal_forward_frame(spread, rho_plus, dt, rtol)
+        ti_arrival, spread_min, U_min, rho_plus_min = lc.frames.minimal_forward(spread, rho_plus, dt, rtol)
         
         # causal diamond frame
         cd_dim = 4
-        spread_cd, U_cd = lc.causal_diamond_frame(spread_min, ti_arrival, U_min, rho_plus_min, dt, rtol, cd_dim)
+        spread_cd, U_cd = lc.frames.causal_diamonds.fixed(spread_min, ti_arrival, U_min, rho_plus_min, dt, rtol, cd_dim)
         
         # moving frame
-        spread_mv, H_mv = lc.moving_frame(spread_cd, ti_arrival, U_cd, dt, cd_dim)
+        spread_mv, H_mv = lc.frames.causal_diamonds.moving(spread_cd, ti_arrival, U_cd, dt, cd_dim)
         
         # Now solve the spin boson model in the moving frame
         num_modes = cd_dim
@@ -82,7 +82,7 @@ class mvf:
             return ti % cd_dim
 
         def begin_step(ti, psi):
-            m_out, m_in = lc.get_inout_range(ti_arrival, ti, cd_dim)
+            m_out, m_in = lc.frames.causal_diamonds.get_inout_range_fixed(ti_arrival, ti, cd_dim)
             
             # if the number of decoupled modes is changed: we need to make a jump
             if m_out != self.m_out_prev:
@@ -97,7 +97,7 @@ class mvf:
                 self.Hint = self.Hint + self.Hint.conj().transpose()
             self.Ht = Hs + m.s_x * f(ti) + self.Hint
             Hw = m.zero_op
-            W = lc.get_H(ti_arrival, H_mv, ti)
+            W = lc.frames.causal_diamonds.get_H(ti_arrival, H_mv, ti)
             if not W is None:
                 for p in range(m_in - m_out):
                     for q in range(m_in - m_out):

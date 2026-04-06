@@ -1,0 +1,6 @@
+python:
+  - 3.12
+scipy:
+  - 1.15
+numpy:
+  - 2.3

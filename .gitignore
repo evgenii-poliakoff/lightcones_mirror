@@ -1,3 +1,4 @@
+.vscode/settings.json
 __pycache__
 .ipynb_checkpoints/
 notebooks/**/*.npz
@@ -5,6 +6,7 @@ notebooks/**/*.txt
 notebooks/**/*.eps
 !notebooks/pictures/*.eps
 notebooks/**/*.jpg
+notebooks/**/*.pkl
 !notebooks/pictures/*.jpg
 notebooks/**/*.gif
 !notebooks/pictures/*.gif
